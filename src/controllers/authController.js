@@ -145,14 +145,34 @@ const getMe = async (req, res) => {
     const itemsMap = {};
     allItems.forEach(i => itemsMap[i.id] = { name: i.name, icon: i.icon });
     
+    // Fetch average market prices for items
+    const marketPrices = await db('market_listings')
+      .where({ status: 'active' })
+      .select('item_id')
+      .avg('price_per_unit as avg_price')
+      .groupBy('item_id');
+      
+    const priceMap = {};
+    marketPrices.forEach(m => priceMap[m.item_id] = parseFloat(m.avg_price));
+    
     let recipeDetails = { energy_cost: user.energy_cost, clicks_needed: user.clicks_needed, consume: [], produce: [] };
     if (user.consume) {
       const c = typeof user.consume === 'string' ? JSON.parse(user.consume) : user.consume;
-      recipeDetails.consume = c.map(x => ({ ...x, name: itemsMap[x.item_id]?.name, icon: itemsMap[x.item_id]?.icon }));
+      recipeDetails.consume = c.map(x => ({ 
+        ...x, 
+        name: itemsMap[x.item_id]?.name, 
+        icon: itemsMap[x.item_id]?.icon,
+        avg_price: priceMap[x.item_id] || 0
+      }));
     }
     if (user.produce) {
       const p = typeof user.produce === 'string' ? JSON.parse(user.produce) : user.produce;
-      recipeDetails.produce = p.map(x => ({ ...x, name: itemsMap[x.item_id]?.name, icon: itemsMap[x.item_id]?.icon }));
+      recipeDetails.produce = p.map(x => ({ 
+        ...x, 
+        name: itemsMap[x.item_id]?.name, 
+        icon: itemsMap[x.item_id]?.icon,
+        avg_price: priceMap[x.item_id] || 0
+      }));
     }
 
     // Fetch settings
