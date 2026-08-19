@@ -273,21 +273,21 @@ const getMarketStats = async (req, res) => {
     const costMap = {};
     professions.forEach(prof => {
       try {
-        const consume = JSON.parse(prof.consume || '[]');
-        const produce = JSON.parse(prof.produce || '[]');
+        const consume = typeof prof.consume === 'string' ? JSON.parse(prof.consume || '[]') : (prof.consume || []);
+        const produce = typeof prof.produce === 'string' ? JSON.parse(prof.produce || '[]') : (prof.produce || []);
         
         if (produce.length > 0) {
           const producedItem = produce[0];
           
           if (consume.length === 0) {
-            costMap[producedItem.item_id] = 0; // Raw material
+            costMap[producedItem.item_id] = -1; // Raw material flag
           } else {
             const totalCost = consume.reduce((acc, c) => acc + (c.qty * (priceMap[c.item_id] || 0)), 0);
             costMap[producedItem.item_id] = totalCost / producedItem.qty;
           }
         }
       } catch (e) {
-        // ignore JSON parse errors
+        console.error("Error parsing profession recipe:", e);
       }
     });
 
