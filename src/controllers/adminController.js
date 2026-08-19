@@ -263,7 +263,44 @@ const getMarketStats = async (req, res) => {
       .groupBy('items.id', 'items.name', 'items.icon')
       .orderBy('items.id', 'asc');
 
-    res.json(stats);
+    const professions = await db('professions').select('consume', 'produce');
+
+    // Create a dictionary of avg_price for easy lookup
+    const priceMap = {};
+    stats.forEach(s => priceMap[s.id] = parseFloat(s.avg_price) || 0);
+
+    // Map produced item_id to its recipe cost
+    const costMap = {};
+    professions.forEach(prof => {
+      try {
+        const consume = JSON.parse(prof.consume || '[]');
+        const produce = JSON.parse(prof.produce || '[]');
+        
+        if (produce.length > 0) {
+          const producedItem = produce[0];
+          
+          if (consume.length === 0) {
+            costMap[producedItem.item_id] = 0; // Raw material
+          } else {
+            const totalCost = consume.reduce((acc, c) => acc + (c.qty * (priceMap[c.item_id] || 0)), 0);
+            costMap[producedItem.item_id] = totalCost / producedItem.qty;
+          }
+        }
+      } catch (e) {
+        // ignore JSON parse errors
+      }
+    });
+
+    // Attach base_cost (tannarx) to stats
+    const enrichedStats = stats.map(s => {
+      let base_cost = costMap[s.id];
+      if (base_cost === undefined) {
+         base_cost = null; // Uncraftable or undefined
+      }
+      return { ...s, base_cost };
+    });
+
+    res.json(enrichedStats);
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Server xatosi', error: error.message });
