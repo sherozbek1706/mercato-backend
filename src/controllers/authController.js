@@ -149,11 +149,31 @@ const getMe = async (req, res) => {
     const marketPrices = await db('market_listings')
       .where({ status: 'active' })
       .select('item_id')
+      .count('id as listing_count')
       .avg('price_per_unit as avg_price')
       .groupBy('item_id');
       
+    const botListings = await db('bot_listings').where({ is_active: true });
+
     const priceMap = {};
-    marketPrices.forEach(m => priceMap[m.item_id] = parseFloat(m.avg_price));
+    marketPrices.forEach(m => {
+      priceMap[m.item_id] = { avg: parseFloat(m.avg_price) || 0, count: parseInt(m.listing_count) || 0 };
+    });
+
+    botListings.forEach(b => {
+       const bPrice = parseFloat(b.price_per_unit);
+       if (!priceMap[b.item_id]) {
+          priceMap[b.item_id] = { avg: bPrice, count: 1 };
+       } else {
+          const curr = priceMap[b.item_id];
+          curr.avg = ((curr.avg * curr.count) + bPrice) / (curr.count + 1);
+          curr.count += 1;
+       }
+    });
+    
+    // Flatten priceMap for easy lookup
+    const finalPriceMap = {};
+    Object.keys(priceMap).forEach(k => finalPriceMap[k] = priceMap[k].avg);
     
     let recipeDetails = { energy_cost: user.energy_cost, clicks_needed: user.clicks_needed, consume: [], produce: [] };
     if (user.consume) {
@@ -162,7 +182,7 @@ const getMe = async (req, res) => {
         ...x, 
         name: itemsMap[x.item_id]?.name, 
         icon: itemsMap[x.item_id]?.icon,
-        avg_price: priceMap[x.item_id] || 0
+        avg_price: finalPriceMap[x.item_id] || 0
       }));
     }
     if (user.produce) {
@@ -171,7 +191,7 @@ const getMe = async (req, res) => {
         ...x, 
         name: itemsMap[x.item_id]?.name, 
         icon: itemsMap[x.item_id]?.icon,
-        avg_price: priceMap[x.item_id] || 0
+        avg_price: finalPriceMap[x.item_id] || 0
       }));
     }
 
