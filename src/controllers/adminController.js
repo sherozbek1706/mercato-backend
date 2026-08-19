@@ -248,6 +248,28 @@ const deleteAdminOrder = async (req, res) => {
   }
 };
 
+const getMarketStats = async (req, res) => {
+  try {
+    const stats = await db('items')
+      .leftJoin('market_listings', function() {
+        this.on('items.id', '=', 'market_listings.item_id').andOn('market_listings.status', '=', db.raw('?', ['active']));
+      })
+      .select('items.id', 'items.name', 'items.icon')
+      .count('market_listings.id as total_listings')
+      .sum('market_listings.quantity as total_quantity')
+      .avg('market_listings.price_per_unit as avg_price')
+      .min('market_listings.price_per_unit as min_price')
+      .max('market_listings.price_per_unit as max_price')
+      .groupBy('items.id', 'items.name', 'items.icon')
+      .orderBy('items.id', 'asc');
+
+    res.json(stats);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server xatosi', error: error.message });
+  }
+};
+
 module.exports = {
   login,
   getUsers,
@@ -266,5 +288,6 @@ module.exports = {
   deleteBot,
   getAdminOrders,
   createOrUpdateAdminOrder,
-  deleteAdminOrder
+  deleteAdminOrder,
+  getMarketStats
 };

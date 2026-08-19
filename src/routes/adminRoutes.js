@@ -39,4 +39,6 @@ router.get('/orders', isAdmin, require('../controllers/adminController').getAdmi
 router.post('/orders', isAdmin, require('../controllers/adminController').createOrUpdateAdminOrder);
 router.delete('/orders/:id', isAdmin, require('../controllers/adminController').deleteAdminOrder);
 
+router.get('/stats/market', isAdmin, require('../controllers/adminController').getMarketStats);
+
 module.exports = router;
