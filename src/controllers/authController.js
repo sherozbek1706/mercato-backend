@@ -26,9 +26,10 @@ function verifyTelegramAuth(data, botToken) {
 }
 
 const register = async (req, res) => {
-  const { username, password, profession_id, telegramData } = req.body;
+  const { username, password, telegramData } = req.body;
+  let { profession_id } = req.body;
 
-  if (!username || !password || !profession_id || !telegramData) {
+  if (!username || !password || !telegramData) {
     return res.status(400).json({ message: 'Iltimos, barcha maydonlarni to\'ldiring va Telegram orqali tasdiqlang' });
   }
 
@@ -68,7 +69,7 @@ const register = async (req, res) => {
       const [insertedUser] = await trx('users').insert({
         username,
         password_hash: hashedPassword,
-        profession_id,
+        profession_id: profession_id || null,
         telegram_id: telegramId,
         balance: initialBalance,
         energy: 100,
@@ -89,6 +90,27 @@ const register = async (req, res) => {
     } else {
       res.status(400).json({ message: 'Foydalanuvchi ma`lumotlari xato' });
     }
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server xatosi' });
+  }
+};
+
+const setProfession = async (req, res) => {
+  const { profession_id } = req.body;
+  if (!profession_id) {
+    return res.status(400).json({ message: 'Kasbni tanlash majburiy' });
+  }
+  
+  try {
+    const user = await db('users').where({ id: req.user.id }).first();
+    if (!user) return res.status(404).json({ message: 'Foydalanuvchi topilmadi' });
+    if (user.profession_id) {
+      return res.status(400).json({ message: 'Kasb allaqachon tanlangan' });
+    }
+    
+    await db('users').where({ id: req.user.id }).update({ profession_id });
+    res.json({ message: 'Kasb muvaffaqiyatli tanlandi', profession_id });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Server xatosi' });
@@ -125,6 +147,7 @@ const getMe = async (req, res) => {
       .leftJoin('professions', 'users.profession_id', 'professions.id')
       .select(
         'users.id', 'users.username', 'users.balance', 'users.energy', 'users.max_energy', 
+        'users.profession_id',
         'professions.name as profession', 'professions.clicks_needed',
         'professions.energy_cost', 'professions.consume', 'professions.produce'
       )
@@ -207,4 +230,4 @@ const getMe = async (req, res) => {
   }
 };
 
-module.exports = { register, login, getMe };
+module.exports = { register, login, getMe, setProfession };

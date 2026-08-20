@@ -263,6 +263,32 @@ const getMarketStats = async (req, res) => {
       .groupBy('items.id', 'items.name', 'items.icon')
       .orderBy('items.id', 'asc');
 
+    const botListings = await db('bot_listings').where({ is_active: true });
+
+    // Merge bot prices into stats
+    stats.forEach(s => {
+      const botsForItem = botListings.filter(b => b.item_id === s.id);
+      
+      let total_listings = parseInt(s.total_listings || 0);
+      let avg_price = parseFloat(s.avg_price || 0);
+      
+      if (botsForItem.length > 0) {
+         const currentTotalValue = avg_price * total_listings;
+         const botTotalValue = botsForItem.reduce((acc, b) => acc + parseFloat(b.price_per_unit), 0);
+         
+         s.total_listings = total_listings + botsForItem.length;
+         s.avg_price = (currentTotalValue + botTotalValue) / s.total_listings;
+         
+         const botMin = Math.min(...botsForItem.map(b => parseFloat(b.price_per_unit)));
+         const botMax = Math.max(...botsForItem.map(b => parseFloat(b.price_per_unit)));
+         
+         s.min_price = s.min_price !== null ? Math.min(parseFloat(s.min_price), botMin) : botMin;
+         s.max_price = s.max_price !== null ? Math.max(parseFloat(s.max_price), botMax) : botMax;
+         
+         s.total_quantity = (parseInt(s.total_quantity) || 0) + 999999; // Represents infinite bot supply
+      }
+    });
+
     const professions = await db('professions').select('consume', 'produce');
 
     // Create a dictionary of avg_price for easy lookup
