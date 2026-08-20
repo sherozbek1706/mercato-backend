@@ -333,6 +333,30 @@ const getMarketStats = async (req, res) => {
   }
 };
 
+const updateUser = async (req, res) => {
+  const { id } = req.params;
+  const { username, password, profession_id } = req.body;
+  const bcrypt = require('bcryptjs');
+
+  try {
+    const updates = {};
+    if (username) updates.username = username;
+    if (profession_id !== undefined) updates.profession_id = profession_id === '' ? null : profession_id;
+    if (password) {
+      const salt = await bcrypt.genSalt(10);
+      updates.password_hash = await bcrypt.hash(password, salt);
+    }
+
+    if (Object.keys(updates).length > 0) {
+      await db('users').where({ id }).update(updates);
+    }
+    res.json({ message: "Foydalanuvchi muvaffaqiyatli yangilandi!" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Xatolik yuz berdi" });
+  }
+};
+
 module.exports = {
   login,
   getUsers,
@@ -341,6 +365,7 @@ module.exports = {
   getItems,
   createOrUpdateItem,
   deleteUser,
+  updateUser,
   deleteProfession,
   deleteItem,
   getUserDetails,

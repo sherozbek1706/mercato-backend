@@ -18,6 +18,7 @@ router.post('/login', login);
 
 router.get('/users', isAdmin, getUsers);
 router.get('/users/:id', isAdmin, getUserDetails);
+router.put('/users/:id', isAdmin, require('../controllers/adminController').updateUser);
 router.delete('/users/:id', isAdmin, deleteUser);
 
 router.get('/professions', isAdmin, getProfessions);
