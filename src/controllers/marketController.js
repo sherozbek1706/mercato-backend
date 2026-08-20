@@ -300,4 +300,72 @@ const cancelListing = async (req, res) => {
   }
 };
 
-module.exports = { sellItem, buyItem, getActiveListings, getMarketHistory, cancelListing };
+const sellToBot = async (req, res) => {
+  const { item_id, quantity } = req.body;
+  const user_id = req.user.id;
+
+  if (!item_id || !quantity || quantity <= 0) {
+    return res.status(400).json({ message: "Noto'g'ri ma'lumotlar kiritildi" });
+  }
+
+  try {
+    let earned = 0;
+    let item_name = '';
+
+    await db.transaction(async (trx) => {
+      // 1. Check inventory
+      const inventoryItem = await trx('inventory')
+        .where({ user_id, item_id })
+        .forUpdate()
+        .first();
+
+      if (!inventoryItem || inventoryItem.quantity < quantity) {
+        throw new Error("Sizda yetarlicha mahsulot yo'q");
+      }
+
+      // 2. Determine price from bot_listings
+      const botListing = await trx('bot_listings').where({ item_id, is_active: true }).first();
+      if (!botListing) {
+        throw new Error("Davlat bu mahsulotni sotib olmaydi.");
+      }
+
+      const item = await trx('items').where({ id: item_id }).first();
+      item_name = item.name;
+
+      // Calculate state buy price (e.g. 60% of bot sell price)
+      const sellPricePerUnit = (parseFloat(botListing.price_per_unit) * 0.6).toFixed(2);
+      earned = parseFloat(sellPricePerUnit) * quantity;
+
+      // 3. Deduct from inventory
+      if (inventoryItem.quantity === quantity) {
+        await trx('inventory').where({ user_id, item_id }).del();
+      } else {
+        await trx('inventory').where({ user_id, item_id }).decrement('quantity', quantity);
+      }
+
+      // 4. Add money to user
+      await trx('users').where({ id: user_id }).increment('balance', earned);
+
+      // 5. Log transaction
+      await trx('market_transactions').insert({
+        buyer_id: null,
+        seller_id: user_id,
+        bot_seller_name: 'Davlat Dokoni (Xarid)',
+        item_id,
+        quantity_sold: quantity,
+        price_per_unit: sellPricePerUnit,
+        total_price: earned
+      });
+    });
+
+    res.status(200).json({ message: `Mahsulot Davlatga sotildi! Hisobingizga ${earned.toFixed(2)} qo'shildi.` });
+    
+    const io = req.app.get('io');
+    if (io) io.emit('market_update');
+  } catch (error) {
+    console.error(error);
+    res.status(400).json({ message: error.message || 'Server xatosi' });
+  }
+};
+
+module.exports = { sellItem, buyItem, getActiveListings, getMarketHistory, cancelListing, sellToBot };
