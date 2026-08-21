@@ -255,7 +255,7 @@ const uploadProfilePicture = async (req, res) => {
     }
 
     // Deduct cost and save picture
-    const picturePath = `/uploads/${req.file.filename}`;
+    const picturePath = req.file.path; // Cloudinary returns the full URL here
     await db.transaction(async (trx) => {
       await trx('users').where({ id: userId }).decrement('balance', cost);
       await trx('users').where({ id: userId }).update({ profile_picture: picturePath });
@@ -267,6 +267,13 @@ const uploadProfilePicture = async (req, res) => {
     res.status(500).json({ message: 'Server xatosi' });
   }
 };
+
+const cloudinary = require('cloudinary').v2;
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'dgg8zdgec',
+  api_key: process.env.CLOUDINARY_API_KEY || '689721383526374',
+  api_secret: process.env.CLOUDINARY_API_SECRET || 'iAqnLwSUwK37abVg8Nk_Ll7Vg4c'
+});
 
 const removeProfilePicture = async (req, res) => {
   try {
@@ -280,10 +287,24 @@ const removeProfilePicture = async (req, res) => {
     const settingRow = await db('settings').where({ key: 'profile_picture_remove_coin' }).first();
     const refundCoin = settingRow ? parseFloat(settingRow.value) : 0;
 
-    // Delete the file
-    const oldPath = path.join(__dirname, '../../', user.profile_picture);
-    if (fs.existsSync(oldPath)) {
-      fs.unlinkSync(oldPath);
+    // Delete the file from cloudinary
+    try {
+      if (user.profile_picture.includes('cloudinary.com')) {
+        // Extract public_id from Cloudinary URL (e.g. .../upload/v1234/folder/filename.jpg)
+        const parts = user.profile_picture.split('/');
+        const filename = parts.pop().split('.')[0];
+        const folder = parts.pop();
+        const public_id = `${folder}/${filename}`;
+        await cloudinary.uploader.destroy(public_id);
+      } else {
+        // Fallback for old local files
+        const oldPath = path.join(__dirname, '../../', user.profile_picture);
+        if (fs.existsSync(oldPath)) {
+          fs.unlinkSync(oldPath);
+        }
+      }
+    } catch (err) {
+      console.error('Error deleting old picture:', err);
     }
 
     await db.transaction(async (trx) => {
