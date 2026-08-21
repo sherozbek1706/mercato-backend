@@ -96,7 +96,7 @@ app.get('/api/leaderboard', async (req, res) => {
   try {
     const topUsers = await db('users')
       .leftJoin('professions', 'users.profession_id', 'professions.id')
-      .select('users.id', 'users.username', 'users.balance', 'professions.name as profession_name')
+      .select('users.id', 'users.username', 'users.balance', 'users.profile_picture', 'professions.name as profession_name')
       .orderBy('users.balance', 'desc')
       .limit(20);
     res.json(topUsers);

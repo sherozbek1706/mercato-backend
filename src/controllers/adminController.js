@@ -18,7 +18,7 @@ const getUsers = async (req, res) => {
   try {
     const users = await db('users')
       .leftJoin('professions', 'users.profession_id', 'professions.id')
-      .select('users.id', 'users.username', 'users.balance', 'users.energy', 'professions.name as profession_name')
+      .select('users.id', 'users.username', 'users.balance', 'users.energy', 'users.profile_picture', 'professions.name as profession_name')
       .orderBy('users.created_at', 'desc');
     res.json(users);
   } catch (error) {
@@ -110,7 +110,7 @@ const getUserDetails = async (req, res) => {
       .leftJoin('professions', 'users.profession_id', 'professions.id')
       .select(
         'users.id', 'users.username', 'users.balance', 'users.energy', 
-        'users.max_energy', 'users.created_at', 'professions.name as profession_name'
+        'users.max_energy', 'users.created_at', 'users.profile_picture', 'professions.name as profession_name'
       )
       .first();
 
