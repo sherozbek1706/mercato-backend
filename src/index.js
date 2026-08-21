@@ -13,13 +13,7 @@ const PORT = process.env.PORT || 5000;
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: [
-      'https://mercato.sherozbek.uz',
-      'http://mercato.sherozbek.uz',
-      'http://localhost:3000',
-      'http://localhost:5173',
-      'http://localhost:5000'
-    ],
+    origin: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     credentials: true
   }
@@ -51,13 +45,7 @@ const orderRoutes = require('./routes/orderRoutes');
 const db = require('./config/db');
 
 app.use(cors({
-  origin: [
-    'https://mercato.sherozbek.uz',
-    'http://mercato.sherozbek.uz',
-    'http://localhost:3000',
-    'http://localhost:5173',
-    'http://localhost:5000'
-  ],
+  origin: true,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
 }));
