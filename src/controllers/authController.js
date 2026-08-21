@@ -242,6 +242,10 @@ const uploadProfilePicture = async (req, res) => {
     const userId = req.user.id;
     const user = await db('users').where({ id: userId }).first();
     
+    if (user.profile_picture) {
+      return res.status(400).json({ message: "Avval eski rasmni o'chirishingiz kerak." });
+    }
+    
     // Get setting for cost
     const settingRow = await db('settings').where({ key: 'profile_picture_cost' }).first();
     const cost = settingRow ? parseFloat(settingRow.value) : 0;
@@ -250,32 +254,14 @@ const uploadProfilePicture = async (req, res) => {
       return res.status(400).json({ message: `Hisobingizda yetarli mablag' yo'q. Rasm yuklash narxi: ${cost} tanga` });
     }
 
-    // Delete old picture if exists
-    let hadOldPicture = false;
-    if (user.profile_picture) {
-      hadOldPicture = true;
-      const oldPath = path.join(__dirname, '../../', user.profile_picture);
-      if (fs.existsSync(oldPath)) {
-        fs.unlinkSync(oldPath);
-      }
-    }
-
-    // Deduct cost and save picture (if they had an old picture, refund its cost first, then deduct new cost. Net change = 0 if cost hasn't changed)
+    // Deduct cost and save picture
     const picturePath = `/uploads/${req.file.filename}`;
     await db.transaction(async (trx) => {
-      if (hadOldPicture) {
-         // Net effect is 0, but if admin changed price, it uses current price for both.
-         // Actually, if we just do nothing to balance, it's equivalent. 
-         // Let's explicitly do increment then decrement if we want to be exact, but they cancel out.
-         // So balance remains same.
-      } else {
-         await trx('users').where({ id: userId }).decrement('balance', cost);
-      }
+      await trx('users').where({ id: userId }).decrement('balance', cost);
       await trx('users').where({ id: userId }).update({ profile_picture: picturePath });
     });
 
-    const newBalance = hadOldPicture ? user.balance : user.balance - cost;
-    res.json({ message: 'Rasm muvaffaqiyatli yuklandi', profile_picture: picturePath, balance: newBalance });
+    res.json({ message: 'Rasm muvaffaqiyatli yuklandi', profile_picture: picturePath, balance: user.balance - cost });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Server xatosi' });
@@ -291,8 +277,8 @@ const removeProfilePicture = async (req, res) => {
       return res.status(400).json({ message: "Sizda profil rasmi yo'q" });
     }
 
-    const settingRow = await db('settings').where({ key: 'profile_picture_cost' }).first();
-    const cost = settingRow ? parseFloat(settingRow.value) : 0;
+    const settingRow = await db('settings').where({ key: 'profile_picture_remove_coin' }).first();
+    const refundCoin = settingRow ? parseFloat(settingRow.value) : 0;
 
     // Delete the file
     const oldPath = path.join(__dirname, '../../', user.profile_picture);
@@ -301,11 +287,11 @@ const removeProfilePicture = async (req, res) => {
     }
 
     await db.transaction(async (trx) => {
-      await trx('users').where({ id: userId }).increment('balance', cost);
+      await trx('users').where({ id: userId }).increment('balance', refundCoin);
       await trx('users').where({ id: userId }).update({ profile_picture: null });
     });
 
-    res.json({ message: `Rasm o'chirildi va ${cost} tanga hisobingizga qaytarildi`, balance: user.balance + cost });
+    res.json({ message: `Rasm o'chirildi va ${refundCoin} tanga hisobingizga qaytarildi`, balance: user.balance + refundCoin });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Server xatosi' });
