@@ -247,6 +247,7 @@ const getMarketHistory = async (req, res) => {
         'buyer.username as buyer_name',
         'seller.username as seller_name',
         'market_transactions.bot_seller_name',
+        'market_transactions.bot_buyer_name',
         'market_transactions.created_at'
       )
       .orderBy('market_transactions.created_at', 'desc');

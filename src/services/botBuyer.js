@@ -3,7 +3,7 @@ const db = require('../config/db');
 const runBotBuyer = async (io) => {
   try {
     // Read settings
-    const settingsRows = await db('settings').whereIn('key', ['bot_buyer_enabled', 'bot_buyer_probability', 'bot_buyer_min_qty', 'bot_buyer_max_qty']);
+    const settingsRows = await db('settings').whereIn('key', ['bot_buyer_enabled', 'bot_buyer_probability', 'bot_buyer_min_qty', 'bot_buyer_max_qty', 'bot_buyer_names']);
     const settings = {};
     settingsRows.forEach(s => settings[s.key] = s.value);
 
@@ -11,6 +11,10 @@ const runBotBuyer = async (io) => {
     if (!isEnabled) return;
 
     const probability = settings['bot_buyer_probability'] ? parseFloat(settings['bot_buyer_probability']) / 100 : 0.7;
+
+    const botNamesString = settings['bot_buyer_names'] || "Ali,Hasan,Boyota,Savdogar";
+    const botNames = botNamesString.split(',').map(n => n.trim()).filter(n => n);
+    const finalBotName = botNames[Math.floor(Math.random() * botNames.length)] || 'Noma\'lum Xaridor';
 
     // 1. Bozordagi barcha aktiv foydalanuvchi elonlarini olish
     const activeListings = await db('market_listings')
@@ -77,9 +81,10 @@ const runBotBuyer = async (io) => {
 
         // Tranzaksiya tarixiga qo'shish
         await trx('market_transactions').insert({
-          buyer_id: null, // Null bo'lsa, Noma'lum Xaridor deyiladi
+          buyer_id: null,
           seller_id: listing.seller_id,
           bot_seller_name: null,
+          bot_buyer_name: finalBotName,
           item_id: listing.item_id,
           quantity_sold: finalQuantity,
           price_per_unit: currentListing.price_per_unit,
@@ -90,7 +95,7 @@ const runBotBuyer = async (io) => {
       // Notification yuborish
       if (io && seller_earnings > 0) {
         io.to(`user_${listing.seller_id}`).emit('item_sold', {
-          message: `Noma'lum Xaridor sizning ${finalQuantity} ta ${listing.item_name} mahsulotingizni sotib oldi. Hisobingizga ${seller_earnings.toFixed(2)} tushdi.`,
+          message: `${finalBotName} sizning ${finalQuantity} ta ${listing.item_name} mahsulotingizni sotib oldi. Hisobingizga ${seller_earnings.toFixed(2)} tushdi.`,
         });
         io.emit('market_update');
       }

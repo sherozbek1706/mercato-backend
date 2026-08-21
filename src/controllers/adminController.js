@@ -229,6 +229,30 @@ const getAdminOrders = async (req, res) => {
   }
 };
 
+const getBotPurchases = async (req, res) => {
+  try {
+    const purchases = await db('market_transactions')
+      .whereNotNull('bot_buyer_name')
+      .join('items', 'market_transactions.item_id', 'items.id')
+      .join('users', 'market_transactions.seller_id', 'users.id')
+      .select(
+        'market_transactions.id',
+        'market_transactions.bot_buyer_name',
+        'market_transactions.quantity_sold',
+        'market_transactions.total_price',
+        'market_transactions.created_at',
+        'items.name as item_name',
+        'items.icon as item_icon',
+        'users.username as seller_name'
+      )
+      .orderBy('market_transactions.created_at', 'desc')
+      .limit(100);
+    res.json(purchases);
+  } catch (error) {
+    res.status(500).json({ message: 'Server xatosi' });
+  }
+};
+
 const createOrUpdateAdminOrder = async (req, res) => {
   const { id, item_id, quantity_required, reward_per_unit, is_active } = req.body;
   try {
@@ -383,6 +407,7 @@ module.exports = {
   createOrUpdateBot,
   deleteBot,
   getAdminOrders,
+  getBotPurchases,
   createOrUpdateAdminOrder,
   deleteAdminOrder,
   getMarketStats

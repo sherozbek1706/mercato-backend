@@ -41,5 +41,6 @@ router.post('/orders', isAdmin, require('../controllers/adminController').create
 router.delete('/orders/:id', isAdmin, require('../controllers/adminController').deleteAdminOrder);
 
 router.get('/stats/market', isAdmin, require('../controllers/adminController').getMarketStats);
+router.get('/bot-purchases', isAdmin, require('../controllers/adminController').getBotPurchases);
 
 module.exports = router;
