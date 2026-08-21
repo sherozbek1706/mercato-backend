@@ -109,11 +109,29 @@ const runBotBuyer = async (io) => {
   }
 };
 
-const startBotBuyer = (io) => {
-  // Har 1 daqiqada ishlaydi
-  setInterval(() => {
-    runBotBuyer(io);
-  }, 1 * 60 * 1000); 
+let isBotRunning = false;
+
+const startBotBuyer = async (io) => {
+  if (isBotRunning) return;
+  isBotRunning = true;
+
+  const runLoop = async () => {
+    try {
+      await runBotBuyer(io);
+    } catch (e) {
+      console.error("Bot xaridida xatolik:", e);
+    }
+    
+    try {
+      const setting = await require('../config/db')('settings').where({ key: 'bot_buyer_interval_min' }).first();
+      const intervalMin = setting ? parseFloat(setting.value) : 1;
+      setTimeout(runLoop, Math.max(intervalMin * 60 * 1000, 10000)); // Minimum 10 sekund kutadi xato bulganda xam
+    } catch (e) {
+      setTimeout(runLoop, 60 * 1000);
+    }
+  };
+
+  runLoop();
 };
 
 module.exports = { startBotBuyer };
