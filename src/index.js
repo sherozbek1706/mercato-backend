@@ -90,6 +90,19 @@ app.get('/api/items', async (req, res) => {
   }
 });
 
+app.get('/api/leaderboard', async (req, res) => {
+  try {
+    const topUsers = await db('users')
+      .leftJoin('professions', 'users.profession_id', 'professions.id')
+      .select('users.id', 'users.username', 'users.balance', 'professions.name as profession_name')
+      .orderBy('users.balance', 'desc')
+      .limit(20);
+    res.json(topUsers);
+  } catch (error) {
+    res.status(500).json({ message: 'Server xatosi', error: error.message });
+  }
+});
+
 // Test endpoint
 app.get('/', (req, res) => {
   res.json({ message: 'Mercato API ishlamoqda' });
