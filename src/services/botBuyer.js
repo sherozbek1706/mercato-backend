@@ -3,7 +3,7 @@ const db = require('../config/db');
 const runBotBuyer = async (io) => {
   try {
     // Read settings
-    const settingsRows = await db('settings').whereIn('key', ['bot_buyer_enabled', 'bot_buyer_probability', 'bot_buyer_min_qty', 'bot_buyer_max_qty', 'bot_buyer_names']);
+    const settingsRows = await db('settings').whereIn('key', ['bot_buyer_enabled', 'bot_buyer_probability', 'bot_buyer_min_qty', 'bot_buyer_max_qty', 'bot_buyer_names', 'bot_buyer_min_price', 'bot_buyer_max_price']);
     const settings = {};
     settingsRows.forEach(s => settings[s.key] = s.value);
 
@@ -16,9 +16,16 @@ const runBotBuyer = async (io) => {
     const botNames = botNamesString.split(',').map(n => n.trim()).filter(n => n);
     const finalBotName = botNames[Math.floor(Math.random() * botNames.length)] || 'Noma\'lum Xaridor';
 
-    // 1. Bozordagi barcha aktiv foydalanuvchi elonlarini olish
+    const minBuy = parseInt(settings['bot_buyer_min_qty'] || '1');
+    const maxBuy = parseInt(settings['bot_buyer_max_qty'] || '5');
+    const minPrice = parseFloat(settings['bot_buyer_min_price'] || '0.01');
+    const maxPrice = parseFloat(settings['bot_buyer_max_price'] || '1000000');
+
+    // 1. Bozordagi barcha aktiv foydalanuvchi elonlarini olish va narxi mos keladiganlarini filtrlash
     const activeListings = await db('market_listings')
       .where({ status: 'active' })
+      .andWhere('price_per_unit', '>=', minPrice)
+      .andWhere('price_per_unit', '<=', maxPrice)
       .join('users', 'market_listings.seller_id', 'users.id')
       .join('items', 'market_listings.item_id', 'items.id')
       .select(
@@ -37,9 +44,6 @@ const runBotBuyer = async (io) => {
     if (Math.random() < probability) { 
       const randomListingIndex = Math.floor(Math.random() * activeListings.length);
       const listing = activeListings[randomListingIndex];
-
-      const minBuy = parseInt(settings['bot_buyer_min_qty'] || '1');
-      const maxBuy = parseInt(settings['bot_buyer_max_qty'] || '5');
 
       // Random miqdorda sotib olish (minBuy dan maxBuy gacha)
       let maxToBuy = Math.min(listing.quantity, maxBuy);
