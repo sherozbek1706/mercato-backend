@@ -2,6 +2,16 @@ const db = require('../config/db');
 
 const runBotBuyer = async (io) => {
   try {
+    // Read settings
+    const settingsRows = await db('settings').whereIn('key', ['bot_buyer_enabled', 'bot_buyer_probability', 'bot_buyer_min_qty', 'bot_buyer_max_qty']);
+    const settings = {};
+    settingsRows.forEach(s => settings[s.key] = s.value);
+
+    const isEnabled = settings['bot_buyer_enabled'] === 'true';
+    if (!isEnabled) return;
+
+    const probability = settings['bot_buyer_probability'] ? parseFloat(settings['bot_buyer_probability']) / 100 : 0.7;
+
     // 1. Bozordagi barcha aktiv foydalanuvchi elonlarini olish
     const activeListings = await db('market_listings')
       .where({ status: 'active' })
@@ -19,14 +29,20 @@ const runBotBuyer = async (io) => {
 
     if (activeListings.length === 0) return;
 
-    // 2. Random ehtimollik (masalan 70% ehtimollik bilan xarid amalga oshadi)
-    if (Math.random() < 0.7) { 
+    // 2. Random ehtimollik
+    if (Math.random() < probability) { 
       const randomListingIndex = Math.floor(Math.random() * activeListings.length);
       const listing = activeListings[randomListingIndex];
 
-      // Random miqdorda sotib olish (1 dan listing.quantity gacha, max 5)
-      const maxToBuy = Math.min(listing.quantity, 5);
-      const quantityToBuy = Math.floor(Math.random() * maxToBuy) + 1;
+      const minBuy = parseInt(settings['bot_buyer_min_qty'] || '1');
+      const maxBuy = parseInt(settings['bot_buyer_max_qty'] || '5');
+
+      // Random miqdorda sotib olish (minBuy dan maxBuy gacha)
+      let maxToBuy = Math.min(listing.quantity, maxBuy);
+      if (maxToBuy < minBuy) maxToBuy = minBuy; // ensure valid range if listing.quantity is low
+      
+      const quantityToBuy = Math.floor(Math.random() * (maxToBuy - minBuy + 1)) + minBuy;
+      const finalQuantity = Math.min(quantityToBuy, listing.quantity); // double check we don't buy more than exists
 
       let seller_earnings = 0;
       let tax_percent = 5;
@@ -38,9 +54,9 @@ const runBotBuyer = async (io) => {
           .forUpdate()
           .first();
 
-        if (!currentListing || currentListing.quantity < quantityToBuy) return;
+        if (!currentListing || currentListing.quantity < finalQuantity) return;
 
-        const total_price = Number(currentListing.price_per_unit) * quantityToBuy;
+        const total_price = Number(currentListing.price_per_unit) * finalQuantity;
         
         // Soliqni hisoblash
         const taxSetting = await trx('settings').where({ key: 'market_tax_percent' }).first();
@@ -53,10 +69,10 @@ const runBotBuyer = async (io) => {
         await trx('users').where({ id: listing.seller_id }).increment('balance', seller_earnings);
 
         // Elonni yangilash
-        if (currentListing.quantity === quantityToBuy) {
+        if (currentListing.quantity === finalQuantity) {
           await trx('market_listings').where({ id: listing.id }).update({ quantity: 0, status: 'sold' });
         } else {
-          await trx('market_listings').where({ id: listing.id }).decrement('quantity', quantityToBuy);
+          await trx('market_listings').where({ id: listing.id }).decrement('quantity', finalQuantity);
         }
 
         // Tranzaksiya tarixiga qo'shish
@@ -65,7 +81,7 @@ const runBotBuyer = async (io) => {
           seller_id: listing.seller_id,
           bot_seller_name: null,
           item_id: listing.item_id,
-          quantity_sold: quantityToBuy,
+          quantity_sold: finalQuantity,
           price_per_unit: currentListing.price_per_unit,
           total_price
         });
@@ -74,7 +90,7 @@ const runBotBuyer = async (io) => {
       // Notification yuborish
       if (io && seller_earnings > 0) {
         io.to(`user_${listing.seller_id}`).emit('item_sold', {
-          message: `Noma'lum Xaridor sizning ${quantityToBuy} ta ${listing.item_name} mahsulotingizni sotib oldi. Hisobingizga ${seller_earnings.toFixed(2)} tushdi.`,
+          message: `Noma'lum Xaridor sizning ${finalQuantity} ta ${listing.item_name} mahsulotingizni sotib oldi. Hisobingizga ${seller_earnings.toFixed(2)} tushdi.`,
         });
         io.emit('market_update');
       }
@@ -85,10 +101,10 @@ const runBotBuyer = async (io) => {
 };
 
 const startBotBuyer = (io) => {
-  // Har 3 daqiqada ishlaydi
+  // Har 1 daqiqada ishlaydi
   setInterval(() => {
     runBotBuyer(io);
-  }, 3 * 60 * 1000); 
+  }, 1 * 60 * 1000); 
 };
 
 module.exports = { startBotBuyer };

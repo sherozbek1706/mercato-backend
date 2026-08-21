@@ -162,11 +162,19 @@ const getSettings = async (req, res) => {
 };
 
 const updateSettings = async (req, res) => {
-  const { work_clicks, eat_clicks, market_tax_percent } = req.body;
+  const updates = req.body;
   try {
-    if (work_clicks) await db('settings').where({ key: 'work_clicks' }).update({ value: work_clicks });
-    if (eat_clicks) await db('settings').where({ key: 'eat_clicks' }).update({ value: eat_clicks });
-    if (market_tax_percent !== undefined) await db('settings').where({ key: 'market_tax_percent' }).update({ value: market_tax_percent });
+    for (const [key, value] of Object.entries(updates)) {
+      if (value !== undefined) {
+        // Check if setting exists
+        const exists = await db('settings').where({ key }).first();
+        if (exists) {
+          await db('settings').where({ key }).update({ value: String(value) });
+        } else {
+          await db('settings').insert({ key, value: String(value) });
+        }
+      }
+    }
     res.json({ message: 'Sozlamalar yangilandi!' });
   } catch (error) {
     res.status(500).json({ message: 'Server xatosi', error: error.message });
