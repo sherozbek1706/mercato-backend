@@ -109,8 +109,12 @@ app.get('/', (req, res) => {
 });
 
 const ip = require('ip');
+const { startBotBuyer } = require('./services/botBuyer');
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`Server is running on http://localhost:${PORT}`);
   console.log(`Network URL: http://${ip.address()}:${PORT}`);
+  
+  // Bot buyer xizmatini ishga tushirish (har 3 daqiqada foydalanuvchilardan narsa sotib oladi)
+  startBotBuyer(io);
 });
