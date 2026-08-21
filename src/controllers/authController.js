@@ -2,6 +2,8 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const db = require('../config/db');
+const fs = require('fs');
+const path = require('path');
 
 const generateToken = (id, username) => {
   return jwt.sign({ id, username }, process.env.JWT_SECRET || 'secret', {
@@ -129,6 +131,7 @@ const login = async (req, res) => {
         username: user.username,
         profession_id: user.profession_id,
         balance: user.balance,
+        profile_picture: user.profile_picture,
         token: generateToken(user.id, user.username),
       });
     } else {
@@ -147,7 +150,7 @@ const getMe = async (req, res) => {
       .leftJoin('professions', 'users.profession_id', 'professions.id')
       .select(
         'users.id', 'users.username', 'users.balance', 'users.energy', 'users.max_energy', 
-        'users.profession_id',
+        'users.profession_id', 'users.profile_picture',
         'professions.name as profession', 'professions.clicks_needed',
         'professions.energy_cost', 'professions.consume', 'professions.produce'
       )
@@ -230,4 +233,83 @@ const getMe = async (req, res) => {
   }
 };
 
-module.exports = { register, login, getMe, setProfession };
+const uploadProfilePicture = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'Rasm yuklanmadi' });
+    }
+
+    const userId = req.user.id;
+    const user = await db('users').where({ id: userId }).first();
+    
+    // Get setting for cost
+    const settingRow = await db('settings').where({ key: 'profile_picture_cost' }).first();
+    const cost = settingRow ? parseFloat(settingRow.value) : 0;
+
+    if (user.balance < cost) {
+      return res.status(400).json({ message: `Hisobingizda yetarli mablag' yo'q. Rasm yuklash narxi: ${cost} tanga` });
+    }
+
+    // Delete old picture if exists
+    let hadOldPicture = false;
+    if (user.profile_picture) {
+      hadOldPicture = true;
+      const oldPath = path.join(__dirname, '../../', user.profile_picture);
+      if (fs.existsSync(oldPath)) {
+        fs.unlinkSync(oldPath);
+      }
+    }
+
+    // Deduct cost and save picture (if they had an old picture, refund its cost first, then deduct new cost. Net change = 0 if cost hasn't changed)
+    const picturePath = `/uploads/${req.file.filename}`;
+    await db.transaction(async (trx) => {
+      if (hadOldPicture) {
+         // Net effect is 0, but if admin changed price, it uses current price for both.
+         // Actually, if we just do nothing to balance, it's equivalent. 
+         // Let's explicitly do increment then decrement if we want to be exact, but they cancel out.
+         // So balance remains same.
+      } else {
+         await trx('users').where({ id: userId }).decrement('balance', cost);
+      }
+      await trx('users').where({ id: userId }).update({ profile_picture: picturePath });
+    });
+
+    const newBalance = hadOldPicture ? user.balance : user.balance - cost;
+    res.json({ message: 'Rasm muvaffaqiyatli yuklandi', profile_picture: picturePath, balance: newBalance });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server xatosi' });
+  }
+};
+
+const removeProfilePicture = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const user = await db('users').where({ id: userId }).first();
+
+    if (!user.profile_picture) {
+      return res.status(400).json({ message: "Sizda profil rasmi yo'q" });
+    }
+
+    const settingRow = await db('settings').where({ key: 'profile_picture_cost' }).first();
+    const cost = settingRow ? parseFloat(settingRow.value) : 0;
+
+    // Delete the file
+    const oldPath = path.join(__dirname, '../../', user.profile_picture);
+    if (fs.existsSync(oldPath)) {
+      fs.unlinkSync(oldPath);
+    }
+
+    await db.transaction(async (trx) => {
+      await trx('users').where({ id: userId }).increment('balance', cost);
+      await trx('users').where({ id: userId }).update({ profile_picture: null });
+    });
+
+    res.json({ message: `Rasm o'chirildi va ${cost} tanga hisobingizga qaytarildi`, balance: user.balance + cost });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server xatosi' });
+  }
+};
+
+module.exports = { register, login, getMe, setProfession, uploadProfilePicture, removeProfilePicture };
