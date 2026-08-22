@@ -1,8 +1,8 @@
 const db = require('../config/db');
 
 // Add XP and level up logic
-async function addXPAndCheckLevel(userId, xpToAdd) {
-  const user = await db('users').where({ id: userId }).first();
+async function addXPAndCheckLevel(userId, xpToAdd, trx = db) {
+  const user = await trx('users').where({ id: userId }).first();
   if (!user) return null;
 
   let newXp = (user.xp || 0) + xpToAdd;
@@ -10,7 +10,7 @@ async function addXPAndCheckLevel(userId, xpToAdd) {
   let levelChanged = false;
 
   while (true) {
-    const nextLevel = await db('levels').where('level', '>', currentLevel).orderBy('level', 'asc').first();
+    const nextLevel = await trx('levels').where('level', '>', currentLevel).orderBy('level', 'asc').first();
     if (nextLevel && newXp >= nextLevel.required_xp) {
       currentLevel = nextLevel.level;
       levelChanged = true;
@@ -19,7 +19,7 @@ async function addXPAndCheckLevel(userId, xpToAdd) {
     }
   }
 
-  await db('users').where({ id: userId }).update({ xp: newXp, level: currentLevel });
+  await trx('users').where({ id: userId }).update({ xp: newXp, level: currentLevel });
   
   return { newXp, currentLevel, levelChanged };
 }
@@ -154,7 +154,7 @@ exports.contributeGlobalQuest = async (req, res) => {
       
       const user = await trx('users').where({ id: userId }).first();
       await trx('users').where({ id: userId }).update({ balance: parseFloat(user.balance) + rewardCoins });
-      await addXPAndCheckLevel(userId, rewardXp);
+      await addXPAndCheckLevel(userId, rewardXp, trx);
     });
 
     res.json({ message: 'Loyihaga o\'z hissangizni qo\'shdingiz! Barakalla!' });
