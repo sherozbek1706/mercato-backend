@@ -138,7 +138,7 @@ exports.contributeGlobalQuest = async (req, res) => {
     
     if (!qty || qty <= 0) return res.status(400).json({ message: 'Noto\'g\'ri miqdor' });
 
-    await db.transaction(async trx => {
+    const result = await db.transaction(async trx => {
       const gq = await trx('global_quests').where({ id: global_quest_id }).first();
       if (!gq || !gq.is_active) throw new Error('Bu loyiha faol emas');
       
@@ -177,9 +177,15 @@ exports.contributeGlobalQuest = async (req, res) => {
       const user = await trx('users').where({ id: userId }).first();
       await trx('users').where({ id: userId }).update({ balance: parseFloat(user.balance) + rewardCoins });
       await addXPAndCheckLevel(userId, rewardXp, trx);
+
+      return { rewardCoins, rewardXp }; // Return variables from trx
     });
 
-    res.json({ message: 'Loyihaga o\'z hissangizni qo\'shdingiz! Barakalla!' });
+    res.json({ 
+      message: 'Loyihaga o\'z hissangizni qo\'shdingiz! Barakalla!',
+      earnedCoins: result.rewardCoins,
+      earnedXp: result.rewardXp
+    });
   } catch (error) {
     res.status(400).json({ message: error.message });
   }
