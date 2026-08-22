@@ -1,10 +1,10 @@
 const express = require('express');
 const router = express.Router();
-const { isAuth } = require('../middlewares/authMiddleware');
+const { protect } = require('../middlewares/authMiddleware');
 const questController = require('../controllers/questController');
 
-router.get('/', isAuth, questController.getUserQuests);
-router.post('/complete', isAuth, questController.completePersonalQuest);
-router.post('/contribute', isAuth, questController.contributeGlobalQuest);
+router.get('/', protect, questController.getUserQuests);
+router.post('/complete', protect, questController.completePersonalQuest);
+router.post('/contribute', protect, questController.contributeGlobalQuest);
 
 module.exports = router;
