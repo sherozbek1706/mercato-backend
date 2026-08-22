@@ -42,6 +42,7 @@ const marketRoutes = require('./routes/marketRoutes');
 const workRoutes = require('./routes/workRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const orderRoutes = require('./routes/orderRoutes');
+const questRoutes = require('./routes/questRoutes');
 const db = require('./config/db');
 
 app.use(cors({
@@ -60,6 +61,7 @@ app.use('/api/market', marketRoutes);
 app.use('/api/work', workRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/orders', orderRoutes);
+app.use('/api/quests', questRoutes);
 
 // Public endpoints for registration & display
 app.get('/api/professions', async (req, res) => {

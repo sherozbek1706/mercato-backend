@@ -43,4 +43,19 @@ router.delete('/orders/:id', isAdmin, require('../controllers/adminController').
 router.get('/stats/market', isAdmin, require('../controllers/adminController').getMarketStats);
 router.get('/bot-purchases', isAdmin, require('../controllers/adminController').getBotPurchases);
 
+const adminQuestController = require('../controllers/adminQuestController');
+// Levels
+router.get('/levels', isAdmin, adminQuestController.getLevels);
+router.post('/levels', isAdmin, adminQuestController.createOrUpdateLevel);
+router.delete('/levels/:id', isAdmin, adminQuestController.deleteLevel);
+
+// Quests (Shoh Farmoni)
+router.get('/quests', isAdmin, adminQuestController.getQuests);
+router.post('/quests', isAdmin, adminQuestController.createOrUpdateQuest);
+router.delete('/quests/:id', isAdmin, adminQuestController.deleteQuest);
+
+// Global Quests (Qirollik Loyihasi)
+router.get('/global-quests', isAdmin, adminQuestController.getGlobalQuests);
+router.post('/global-quests', isAdmin, adminQuestController.createOrUpdateGlobalQuest);
+router.delete('/global-quests/:id', isAdmin, adminQuestController.deleteGlobalQuest);
 module.exports = router;

@@ -150,7 +150,7 @@ const getMe = async (req, res) => {
       .leftJoin('professions', 'users.profession_id', 'professions.id')
       .select(
         'users.id', 'users.username', 'users.balance', 'users.energy', 'users.max_energy', 
-        'users.profession_id', 'users.profile_picture',
+        'users.profession_id', 'users.profile_picture', 'users.xp', 'users.level',
         'professions.name as profession', 'professions.clicks_needed',
         'professions.energy_cost', 'professions.consume', 'professions.produce'
       )
@@ -159,6 +159,10 @@ const getMe = async (req, res) => {
     if(!user) {
       return res.status(404).json({ message: 'User topilmadi' });
     }
+    
+    // Get next level XP
+    const nextLevel = await db('levels').where('level', '>', user.level || 1).orderBy('level', 'asc').first();
+    user.next_level_xp = nextLevel ? nextLevel.required_xp : (user.xp || 1);
     
     // Get inventory
     const inventory = await db('inventory')
