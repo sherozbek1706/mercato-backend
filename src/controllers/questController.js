@@ -58,11 +58,17 @@ exports.getUserQuests = async (req, res) => {
     for (let gq of activeGlobalQuests) {
       if (typeof gq.required_items === 'string') gq.required_items = JSON.parse(gq.required_items);
       
-      const sum = await db('global_quest_contributions').where({ global_quest_id: gq.id }).sum('qty as total_qty');
-      gq.current_qty = sum[0].total_qty || 0;
-      
-      const userSum = await db('global_quest_contributions').where({ global_quest_id: gq.id, user_id: userId }).sum('qty as user_qty');
-      gq.user_contribution = userSum[0].user_qty || 0;
+      for (let req of gq.required_items) {
+        const sum = await db('global_quest_contributions')
+          .where({ global_quest_id: gq.id, item_id: req.item_id })
+          .sum('qty as total_qty');
+        req.current_qty = sum[0].total_qty || 0;
+        
+        const userSum = await db('global_quest_contributions')
+          .where({ global_quest_id: gq.id, item_id: req.item_id, user_id: userId })
+          .sum('qty as user_qty');
+        req.user_contribution = userSum[0].user_qty || 0;
+      }
     }
 
     res.json({
@@ -136,6 +142,18 @@ exports.contributeGlobalQuest = async (req, res) => {
       const gq = await trx('global_quests').where({ id: global_quest_id }).first();
       if (!gq || !gq.is_active) throw new Error('Bu loyiha faol emas');
       
+      // Parse items to find specific target ratio
+      const parsedItems = typeof gq.required_items === 'string' ? JSON.parse(gq.required_items) : gq.required_items;
+      const targetItem = parsedItems.find(i => parseInt(i.item_id) === parseInt(item_id));
+      if (!targetItem) throw new Error('Bu mahsulot ushbu loyihaga kerak emas');
+      
+      // Check limits
+      const sum = await trx('global_quest_contributions').where({ global_quest_id, item_id }).sum('qty as total_qty');
+      const currentQty = sum[0].total_qty || 0;
+      if (currentQty + qty > targetItem.target_qty) {
+        throw new Error(`Siz buncha qo'sha olmaysiz. Yana faqat ${targetItem.target_qty - currentQty} ta kerak xolos!`);
+      }
+      
       const inv = await trx('inventory').where({ user_id: userId, item_id }).first();
       if (!inv || inv.quantity < qty) throw new Error('Sizda yetarli mahsulot yo\'q');
       
@@ -146,11 +164,15 @@ exports.contributeGlobalQuest = async (req, res) => {
         global_quest_id, user_id: userId, item_id, qty
       });
       
-      // Optional: Add small XP/Coins reward per contribution immediately, 
-      // or rely on total pool distribution later. For now, simple fixed per item:
-      // Say 1 xp and 1 coin per item.
-      const rewardCoins = qty * 0.5;
-      const rewardXp = qty * 2;
+      // Reward logic based on pool and total items
+      let totalTarget = 0;
+      parsedItems.forEach(r => { totalTarget += parseInt(r.target_qty); });
+      
+      const coinPerItem = gq.reward_coins_pool / totalTarget;
+      const xpPerItem = gq.reward_xp_pool / totalTarget;
+      
+      const rewardCoins = qty * coinPerItem;
+      const rewardXp = qty * xpPerItem;
       
       const user = await trx('users').where({ id: userId }).first();
       await trx('users').where({ id: userId }).update({ balance: parseFloat(user.balance) + rewardCoins });
