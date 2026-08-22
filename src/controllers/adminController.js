@@ -18,8 +18,21 @@ const getUsers = async (req, res) => {
   try {
     const users = await db('users')
       .leftJoin('professions', 'users.profession_id', 'professions.id')
-      .select('users.id', 'users.username', 'users.balance', 'users.energy', 'users.profile_picture', 'professions.name as profession_name')
+      .select('users.id', 'users.username', 'users.balance', 'users.energy', 'users.profile_picture', 'users.level', 'users.xp', 'professions.name as profession_name')
       .orderBy('users.created_at', 'desc');
+
+    // Attach current quest info
+    for (let u of users) {
+      const completedQuests = await db('user_quests')
+        .where({ user_id: u.id })
+        .join('quests', 'user_quests.quest_id', 'quests.id')
+        .max('quests.order_index as max_index')
+        .first();
+      
+      const maxCompleted = completedQuests?.max_index || 0;
+      u.current_quest_index = maxCompleted + 1;
+    }
+
     res.json(users);
   } catch (error) {
     res.status(500).json({ message: 'Server xatosi', error: error.message });
