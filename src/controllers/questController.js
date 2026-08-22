@@ -62,12 +62,12 @@ exports.getUserQuests = async (req, res) => {
         const sum = await db('global_quest_contributions')
           .where({ global_quest_id: gq.id, item_id: req.item_id })
           .sum('qty as total_qty');
-        req.current_qty = sum[0].total_qty || 0;
+        req.current_qty = parseInt(sum[0].total_qty) || 0;
         
         const userSum = await db('global_quest_contributions')
           .where({ global_quest_id: gq.id, item_id: req.item_id, user_id: userId })
           .sum('qty as user_qty');
-        req.user_contribution = userSum[0].user_qty || 0;
+        req.user_contribution = parseInt(userSum[0].user_qty) || 0;
       }
     }
 
