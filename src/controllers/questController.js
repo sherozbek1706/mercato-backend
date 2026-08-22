@@ -149,7 +149,7 @@ exports.contributeGlobalQuest = async (req, res) => {
       
       // Check limits
       const sum = await trx('global_quest_contributions').where({ global_quest_id, item_id }).sum('qty as total_qty');
-      const currentQty = sum[0].total_qty || 0;
+      const currentQty = parseInt(sum[0].total_qty) || 0;
       if (currentQty + qty > targetItem.target_qty) {
         throw new Error(`Siz buncha qo'sha olmaysiz. Yana faqat ${targetItem.target_qty - currentQty} ta kerak xolos!`);
       }
